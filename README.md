@@ -8,6 +8,12 @@
 
 <div align="center">
 
+![azm - Azure Multi-Client Manager](.github/assets/hero.png)
+
+</div>
+
+<div align="center">
+
 ### Quick Install
 
 **macOS / Linux:**
@@ -320,9 +326,13 @@ When you run `azm run acme az group list`, it sets `AZURE_CONFIG_DIR` to `~/.azc
 
 ---
 
-## Copilot Integration
+## 🤖 AI Integration
 
-`azm` ships with a [GitHub Copilot skill](.github/skills/azm-client-manager/SKILL.md) that enables AI-assisted Azure management across all your clients. The skill teaches Copilot the `azm` command syntax and your client mappings.
+Boost your productivity with AI-powered Azure management. `azm` works seamlessly with **GitHub Copilot** and **Claude** to automate complex multi-tenant workflows.
+
+### GitHub Copilot Skill
+
+`azm` ships with a [GitHub Copilot skill](.github/skills/azm-client-manager/SKILL.md) that teaches Copilot your client mappings and command syntax. Ask Copilot to run Azure commands across tenants, compare resources, or automate complex workflows.
 
 <div align="center">
 
@@ -334,7 +344,39 @@ When you run `azm run acme az group list`, it sets `AZURE_CONFIG_DIR` to `~/.azc
 
 </div>
 
-To use it, customize the client table in the skill file with your own client names and tenants (optional - dynamic discovery works without it).
+**Example prompts:**
+```
+"List all resource groups across my acme and contoso clients"
+"Compare VM sizes between production and staging tenants"
+"Check which clients have expired tokens and help me re-login"
+```
+
+### Claude Integration
+
+Use `azm` with Claude Desktop or Claude API to build custom automation scripts, analyze Azure resources, or generate infrastructure reports across multiple tenants.
+
+**Setup with Claude Desktop:**
+1. Open Claude Desktop settings
+2. Add this MCP server configuration (or use [.github/claude-mcp-config.json](.github/claude-mcp-config.json)):
+```json
+{
+  "mcpServers": {
+    "azm-client-manager": {
+      "command": "azm",
+      "args": ["list", "--json"],
+      "description": "Azure Multi-Client Manager"
+    }
+  }
+}
+```
+3. Restart Claude Desktop
+4. Now Claude can discover your registered Azure clients and help automate multi-tenant tasks
+
+**Example use cases:**
+- Generate cost optimization reports across all clients
+- Automate security compliance checks for multi-tenant environments
+- Build custom dashboards by querying resources with `azm run` + Claude analysis
+- Script complex Azure operations with natural language instructions
 
 ---
 
