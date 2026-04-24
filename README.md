@@ -324,16 +324,6 @@ When you run `azm run acme az group list`, it sets `AZURE_CONFIG_DIR` to `~/.azc
 
 `azm` ships with a [GitHub Copilot skill](.github/skills/azm-client-manager/SKILL.md) that enables AI-assisted Azure management across all your clients. The skill teaches Copilot the `azm` command syntax and your client mappings.
 
-<div align="center">
-
-**Add skill to GitHub Copilot:**
-
-[![Add to Copilot](https://img.shields.io/badge/Add_to-GitHub_Copilot-black?logo=github)](vscode://github.copilot/addSkill?url=https://raw.githubusercontent.com/realsanket/azm-client-manager/main/.github/skills/azm-client-manager/SKILL.md)
-
-*Click the button above or manually add the skill URL in VS Code*
-
-</div>
-
 To use it, customize the client table in the skill file with your own client names and tenants (optional - dynamic discovery works without it).
 
 ---
