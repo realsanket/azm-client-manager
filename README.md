@@ -1,8 +1,35 @@
 # azm — Azure Multi-Client CLI Manager
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue)]()
+[![GitHub](https://img.shields.io/badge/GitHub-realsanket%2Fazm--client--manager-181717?logo=github)](https://github.com/realsanket/azm-client-manager)
 
 **Stop switching Azure accounts manually.** `azm` lets you manage multiple Azure tenants and subscriptions from a single terminal — each client gets an isolated profile, so credentials never leak between accounts.
+
+<div align="center">
+
+### Quick Install
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/realsanket/azm-client-manager/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/realsanket/azm-client-manager/main/install.ps1 | iex
+```
+
+**Or clone and install:**
+```bash
+git clone https://github.com/realsanket/azm-client-manager.git
+cd azm-client-manager
+./install.sh  # or .\install.ps1 on Windows
+```
+
+</div>
+
+---
 
 ```bash
 # Register your clients
@@ -19,6 +46,15 @@ azm run contoso az vm list -o table
 # Compare resources across clients
 azm compare acme contoso az group list -o json
 ```
+
+### ✨ Features
+
+- 🔐 **Isolated profiles** — credentials never leak between clients
+- ⚡ **Fast switching** — no more `az login` every time
+- 🔍 **Token validation** — detects expired sessions instantly
+- 💻 **Cross-platform** — Bash (Mac/Linux) + PowerShell (Windows)
+- 🤖 **Copilot-ready** — AI-assisted with GitHub Copilot skill
+- 📊 **Compare & audit** — diff resources, log every command
 
 ---
 
@@ -58,8 +94,8 @@ If you work with **multiple Azure tenants** (consulting, MSP, multi-org), you kn
 
 ```bash
 # Clone and install
-git clone https://github.com/<your-username>/azm-tool.git
-cd azm-tool
+git clone https://github.com/realsanket/azm-client-manager.git
+cd azm-client-manager
 chmod +x install.sh
 ./install.sh
 ```
@@ -82,8 +118,8 @@ export PATH="$HOME/.azclients/bin:$PATH"
 
 ```powershell
 # Clone and install
-git clone https://github.com/<your-username>/azm-tool.git
-cd azm-tool
+git clone https://github.com/realsanket/azm-client-manager.git
+cd azm-client-manager
 .\install.ps1
 ```
 
@@ -288,7 +324,17 @@ When you run `azm run acme az group list`, it sets `AZURE_CONFIG_DIR` to `~/.azc
 
 `azm` ships with a [GitHub Copilot skill](.github/skills/azm-client-manager/SKILL.md) that enables AI-assisted Azure management across all your clients. The skill teaches Copilot the `azm` command syntax and your client mappings.
 
-To use it, customize the client table in the skill file with your own client names and tenants.
+<div align="center">
+
+**Add skill to GitHub Copilot:**
+
+[![Add to Copilot](https://img.shields.io/badge/Add_to-GitHub_Copilot-black?logo=github)](vscode://github.copilot/addSkill?url=https://raw.githubusercontent.com/realsanket/azm-client-manager/main/.github/skills/azm-client-manager/SKILL.md)
+
+*Click the button above or manually add the skill URL in VS Code*
+
+</div>
+
+To use it, customize the client table in the skill file with your own client names and tenants (optional - dynamic discovery works without it).
 
 ---
 
