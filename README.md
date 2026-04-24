@@ -8,6 +8,14 @@
 
 <div align="center">
 
+![azm - Azure Multi-Client Manager](.github/assets/hero.png)
+
+</div>
+
+---
+
+<div align="center">
+
 ### Quick Install
 
 **macOS / Linux:**
