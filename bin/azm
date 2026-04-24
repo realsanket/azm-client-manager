@@ -1,0 +1,766 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════════════════
+# azm — Azure Multi-Client CLI Manager
+# ═══════════════════════════════════════════════════════════════════════════
+# Manages multiple Azure tenants/subscriptions with isolated CLI profiles.
+# Each client gets its own AZURE_CONFIG_DIR so credentials, tokens, and
+# config never leak across clients.
+#
+# Usage:  azm <command> [args...]
+#   azm add <name> <tenant> <email> [subscription-id]
+#   azm list
+#   azm login <name>
+#   azm run <name> <az-command...>
+#   azm switch <name>          — print export for shell eval
+#   azm status [name]          — show active context / client info
+#   azm remove <name>
+#   azm log <name> [n]         — show last n commands (default 20)
+#   azm compare <name1> <name2> <az-command...>  — run same command on two clients
+#
+# Supported platforms: macOS (bash 3.2+), Linux (bash 4+)
+# For Windows: use the PowerShell version (azm.ps1) or WSL/Git Bash
+# ═══════════════════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+AZM_VERSION="1.0.0"
+
+# ── paths ─────────────────────────────────────────────────────────────────
+AZM_HOME="${AZM_HOME:-$HOME/.azclients}"
+AZM_CLIENTS_FILE="$AZM_HOME/clients.conf"
+AZM_PROFILES_DIR="$AZM_HOME/profiles"
+AZM_LOGS_DIR="$AZM_HOME/logs"
+
+# ── colors ────────────────────────────────────────────────────────────────
+C_RESET=$'\033[0m'
+C_BOLD=$'\033[1m'
+C_RED=$'\033[0;31m'
+C_GREEN=$'\033[0;32m'
+C_YELLOW=$'\033[0;33m'
+C_CYAN=$'\033[0;36m'
+C_DIM=$'\033[2m'
+
+# Disable colors if not a terminal
+if [[ ! -t 1 ]]; then
+    C_RESET="" C_BOLD="" C_RED="" C_GREEN="" C_YELLOW="" C_CYAN="" C_DIM=""
+fi
+
+# ── helpers ───────────────────────────────────────────────────────────────
+_info()  { printf "${C_CYAN}▸${C_RESET} %s\n" "$*"; }
+_ok()    { printf "${C_GREEN}✓${C_RESET} %s\n" "$*"; }
+_warn()  { printf "${C_YELLOW}⚠${C_RESET} %s\n" "$*" >&2; }
+_err()   { printf "${C_RED}✗${C_RESET} %s\n" "$*" >&2; }
+_die()   { _err "$@"; exit 1; }
+
+_ensure_dirs() {
+    mkdir -p "$AZM_PROFILES_DIR" "$AZM_LOGS_DIR"
+    [[ -f "$AZM_CLIENTS_FILE" ]] || touch "$AZM_CLIENTS_FILE"
+}
+
+# Sanitize client name for use as directory name (lowercase, alphanumeric + dash)
+_sanitize_name() {
+    echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//'
+}
+
+# ── client CRUD ───────────────────────────────────────────────────────────
+
+# Lookup client line from clients.conf — returns "name|tenant|subscription|email"
+_lookup_client() {
+    local name="$1"
+    local sanitized
+    sanitized=$(_sanitize_name "$name")
+    grep -i "^${sanitized}|" "$AZM_CLIENTS_FILE" 2>/dev/null || true
+}
+
+_client_exists() {
+    [[ -n "$(_lookup_client "$1")" ]]
+}
+
+_parse_field() {
+    # $1=line, $2=field (1-based)
+    echo "$1" | cut -d'|' -f"$2"
+}
+
+_profile_dir() {
+    local name
+    name=$(_sanitize_name "$1")
+    echo "$AZM_PROFILES_DIR/$name"
+}
+
+_log_file() {
+    local name
+    name=$(_sanitize_name "$1")
+    echo "$AZM_LOGS_DIR/${name}.log"
+}
+
+_log_cmd() {
+    local name="$1"; shift
+    local logf
+    logf=$(_log_file "$name")
+    printf '%s | %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$logf"
+}
+
+# ── banner ────────────────────────────────────────────────────────────────
+_print_context() {
+    local name="$1" line tenant sub email
+    line=$(_lookup_client "$name")
+    tenant=$(_parse_field "$line" 2)
+    sub=$(_parse_field "$line" 3)
+    email=$(_parse_field "$line" 4)
+    printf "${C_DIM}─────────────────────────────────────────────${C_RESET}\n"
+    printf "${C_BOLD}Client :${C_RESET} %s\n" "$name"
+    printf "${C_BOLD}Tenant :${C_RESET} %s\n" "$tenant"
+    printf "${C_BOLD}Subscr :${C_RESET} %s\n" "$sub"
+    printf "${C_BOLD}Email  :${C_RESET} %s\n" "$email"
+    printf "${C_DIM}─────────────────────────────────────────────${C_RESET}\n"
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# COMMANDS
+# ══════════════════════════════════════════════════════════════════════════
+
+cmd_add() {
+    if [[ $# -lt 3 ]]; then
+        _die "Usage: azm add <name> <tenant-id-or-domain> <email> [subscription-id]"
+    fi
+    local raw_name="$1" tenant="$2" email="$3" sub="${4:-}"
+    local name
+    name=$(_sanitize_name "$raw_name")
+
+    if _client_exists "$name"; then
+        _die "Client '$name' already registered. Remove first with: azm remove $name"
+    fi
+
+    # Basic validation
+    [[ -z "$tenant" ]] && _die "Tenant cannot be empty"
+    [[ -z "$email" ]]  && _die "Email cannot be empty"
+
+    # Create isolated profile directory
+    local pdir
+    pdir=$(_profile_dir "$name")
+    mkdir -p "$pdir"
+
+    # Register (sub may be empty; will be auto-detected on first login)
+    echo "${name}|${tenant}|${sub}|${email}" >> "$AZM_CLIENTS_FILE"
+    _ok "Registered client '${name}'"
+    _info "Profile dir : $pdir"
+    [[ -z "$sub" ]] && _info "Subscription not provided — will be auto-detected on login"
+    _info "Next step   : azm login $name"
+}
+
+cmd_list() {
+    if [[ ! -s "$AZM_CLIENTS_FILE" ]]; then
+        _warn "No clients registered yet. Use: azm add <name> <tenant> <email>"
+        return 0
+    fi
+
+    # --names: machine-readable, one client name per line
+    if [[ "${1:-}" == "--names" ]]; then
+        while IFS='|' read -r cname _; do
+            [[ -z "$cname" || "$cname" == \#* ]] && continue
+            echo "$cname"
+        done < "$AZM_CLIENTS_FILE"
+        return 0
+    fi
+
+    # --json: machine-readable JSON array
+    if [[ "${1:-}" == "--json" ]]; then
+        local first=true
+        echo "["
+        while IFS='|' read -r cname ctenant csub cemail; do
+            [[ -z "$cname" || "$cname" == \#* ]] && continue
+            local pdir logged_in="false"
+            pdir=$(_profile_dir "$cname")
+            if [[ -f "$pdir/msal_token_cache.json" ]] || [[ -f "$pdir/accessTokens.json" ]] || [[ -f "$pdir/msal_token_cache.bin" ]]; then
+                logged_in="true"
+            fi
+            $first || echo ","
+            printf '  {"name":"%s","tenant":"%s","subscription":"%s","email":"%s","logged_in":%s}' \
+                "$cname" "$ctenant" "$csub" "$cemail" "$logged_in"
+            first=false
+        done < "$AZM_CLIENTS_FILE"
+        echo ""
+        echo "]"
+        return 0
+    fi
+
+    printf "${C_BOLD}%-20s %-40s %-38s %s${C_RESET}\n" "CLIENT" "TENANT" "SUBSCRIPTION" "EMAIL"
+    printf '%.0s─' {1..140}; echo
+    local pdir status_icon
+    while IFS='|' read -r cname ctenant csub cemail; do
+        [[ -z "$cname" || "$cname" == \#* ]] && continue
+        # Check if logged-in (has accessTokens.json or msal_token_cache)
+        pdir=$(_profile_dir "$cname")
+        if [[ -f "$pdir/msal_token_cache.json" ]] || [[ -f "$pdir/accessTokens.json" ]] || [[ -f "$pdir/msal_token_cache.bin" ]]; then
+            status_icon="${C_GREEN}●${C_RESET}"
+        else
+            status_icon="${C_RED}○${C_RESET}"
+        fi
+        printf "%b %-19s %-40s %-38s %s\n" "$status_icon" "$cname" "$ctenant" "$csub" "$cemail"
+    done < "$AZM_CLIENTS_FILE"
+    echo
+    printf "  ${C_GREEN}●${C_RESET} = token cache present (may be expired)   ${C_RED}○${C_RESET} = needs login\n"
+    echo
+    _info "Note: If 'azm run' fails with auth error, the token is expired. Run: azm login <name>"
+}
+
+# Login a single client (internal)
+_login_one() {
+    local name="$1"
+
+    if ! _client_exists "$name"; then
+        _err "Client '$name' not found. Run 'azm list' to see registered clients."
+        return 1
+    fi
+
+    local line tenant sub email pdir
+    line=$(_lookup_client "$name")
+    tenant=$(_parse_field "$line" 2)
+    sub=$(_parse_field "$line" 3)
+    email=$(_parse_field "$line" 4)
+    pdir=$(_profile_dir "$name")
+
+    _print_context "$name"
+    _info "Logging in interactively for ${C_BOLD}$name${C_RESET} ..."
+    _info "A browser window will open. Sign in as: ${C_BOLD}$email${C_RESET}"
+    echo
+
+    # Set isolated config dir and run login
+    AZURE_CONFIG_DIR="$pdir" az login --tenant "$tenant" --only-show-errors
+
+    # Set or auto-detect default subscription
+    if [[ -n "$sub" ]]; then
+        AZURE_CONFIG_DIR="$pdir" az account set --subscription "$sub" --only-show-errors
+        _info "Default subscription set to: $sub"
+    else
+        sub=$(AZURE_CONFIG_DIR="$pdir" az account show --query id -o tsv 2>/dev/null || true)
+        if [[ -n "$sub" ]]; then
+            local tmpfile="$AZM_CLIENTS_FILE.tmp"
+            awk -F'|' -v n="$name" -v s="$sub" 'BEGIN{OFS="|"} $1==n{$3=s} {print}' \
+                "$AZM_CLIENTS_FILE" > "$tmpfile" && mv "$tmpfile" "$AZM_CLIENTS_FILE"
+            _info "Auto-detected subscription: $sub (saved)"
+        else
+            _warn "Could not detect subscription. Set it manually: azm set-sub $name <sub-id>"
+        fi
+    fi
+
+    _log_cmd "$name" "LOGIN tenant=$tenant subscription=$sub"
+    echo
+    _ok "Login successful for '$name'"
+}
+
+cmd_login() {
+    if [[ $# -lt 1 ]]; then
+        _die "Usage: azm login <client-name> [client2 client3 ...]"
+    fi
+
+    local failed=0
+    local total=$#
+
+    if [[ $total -eq 1 ]]; then
+        _login_one "$(_sanitize_name "$1")"
+        return $?
+    fi
+
+    # Multiple clients — login sequentially, one browser window at a time
+    printf "${C_BOLD}Logging in to %d clients sequentially...${C_RESET}\n" "$total"
+    echo
+
+    local i=0
+    for raw in "$@"; do
+        (( i++ )) || true
+        local name
+        name=$(_sanitize_name "$raw")
+        printf "${C_DIM}[%d/%d]${C_RESET} Starting login for ${C_BOLD}%s${C_RESET}\n" "$i" "$total" "$name"
+        echo
+        if ! _login_one "$name"; then
+            (( failed++ )) || true
+        fi
+        if [[ $i -lt $total ]]; then
+            printf "${C_YELLOW}⏎  Press Enter to continue to next client...${C_RESET}"
+            read -r
+            echo
+        fi
+    done
+
+    echo
+    printf "${C_BOLD}Login summary: %d/%d succeeded${C_RESET}\n" "$(( total - failed ))" "$total"
+    [[ $failed -eq 0 ]] && _ok "All clients logged in successfully" || _warn "$failed client(s) failed"
+}
+
+cmd_login_all() {
+    if [[ ! -s "$AZM_CLIENTS_FILE" ]]; then
+        _die "No clients registered. Use: azm add <name> <tenant> <email>"
+    fi
+
+    # Collect all client names
+    local names=()
+    while IFS='|' read -r cname _; do
+        [[ -z "$cname" || "$cname" == \#* ]] && continue
+        names+=("$cname")
+    done < "$AZM_CLIENTS_FILE"
+
+    _info "Found ${#names[@]} registered client(s): ${names[*]}"
+    echo
+    cmd_login "${names[@]}"
+}
+
+cmd_run() {
+    if [[ $# -lt 2 ]]; then
+        _die "Usage: azm run <client-name> <az-command...>\n  Example: azm run mycompany az group list"
+    fi
+    local name
+    name=$(_sanitize_name "$1"); shift
+
+    if ! _client_exists "$name"; then
+        _die "Client '$name' not found. Run 'azm list' to see registered clients."
+    fi
+
+    local pdir
+    pdir=$(_profile_dir "$name")
+
+    # Verify profile exists
+    if [[ ! -d "$pdir" ]]; then
+        _die "Profile directory missing for '$name'. Re-add the client."
+    fi
+
+    # Print context
+    _print_context "$name"
+    _info "Running: $*"
+    echo
+
+    # Log the command
+    _log_cmd "$name" "$*"
+
+    # Execute with isolated config
+    AZURE_CONFIG_DIR="$pdir" "$@"
+    local rc=$?
+
+    if [[ $rc -ne 0 ]]; then
+        echo
+        _warn "Command exited with code $rc"
+        # Check if it's an auth error
+        if [[ $rc -eq 1 ]]; then
+            _info "If session expired, re-login with: azm login $name"
+        fi
+    fi
+    return $rc
+}
+
+cmd_switch() {
+    if [[ $# -lt 1 ]]; then
+        _die "Usage: eval \$(azm switch <client-name>)"
+    fi
+    local name
+    name=$(_sanitize_name "$1")
+
+    if ! _client_exists "$name"; then
+        _die "Client '$name' not found."
+    fi
+
+    local pdir
+    pdir=$(_profile_dir "$name")
+    echo "export AZURE_CONFIG_DIR=\"$pdir\""
+}
+
+cmd_status() {
+    if [[ $# -ge 1 ]]; then
+        local name
+        name=$(_sanitize_name "$1")
+        if ! _client_exists "$name"; then
+            _die "Client '$name' not found."
+        fi
+        _print_context "$name"
+        local pdir
+        pdir=$(_profile_dir "$name")
+        _info "Profile dir: $pdir"
+        echo
+        _info "Checking account status..."
+        AZURE_CONFIG_DIR="$pdir" az account show --output table 2>/dev/null || _warn "Not logged in or session expired. Run: azm login $name"
+        return 0
+    fi
+
+    # Show global status
+    if [[ -n "${AZURE_CONFIG_DIR:-}" ]]; then
+        _info "Current AZURE_CONFIG_DIR: $AZURE_CONFIG_DIR"
+        local active_client=""
+        while IFS='|' read -r cname _ _ _; do
+            local pd
+            pd=$(_profile_dir "$cname")
+            if [[ "$AZURE_CONFIG_DIR" == "$pd" ]]; then
+                active_client="$cname"
+                break
+            fi
+        done < "$AZM_CLIENTS_FILE"
+        if [[ -n "$active_client" ]]; then
+            _ok "Active client: $active_client"
+            _print_context "$active_client"
+        fi
+    else
+        _info "No client switched in current shell (AZURE_CONFIG_DIR not set)"
+        _info "Use 'azm run <client> <command>' for isolated execution"
+        _info "Or  'eval \$(azm switch <client>)' to switch shell context"
+    fi
+}
+
+cmd_remove() {
+    if [[ $# -lt 1 ]]; then
+        _die "Usage: azm remove <client-name>"
+    fi
+    local name
+    name=$(_sanitize_name "$1")
+
+    if ! _client_exists "$name"; then
+        _die "Client '$name' not found."
+    fi
+
+    # Remove from config file
+    local tmpfile="$AZM_CLIENTS_FILE.tmp"
+    grep -iv "^${name}|" "$AZM_CLIENTS_FILE" > "$tmpfile" || true
+    mv "$tmpfile" "$AZM_CLIENTS_FILE"
+
+    # Remove profile directory
+    local pdir
+    pdir=$(_profile_dir "$name")
+    if [[ -d "$pdir" ]]; then
+        rm -rf "$pdir"
+        _info "Removed profile directory: $pdir"
+    fi
+
+    # Remove log
+    local logf
+    logf=$(_log_file "$name")
+    [[ -f "$logf" ]] && rm -f "$logf"
+
+    _ok "Removed client '$name'"
+}
+
+cmd_log() {
+    if [[ $# -lt 1 ]]; then
+        _die "Usage: azm log <client-name> [lines]"
+    fi
+    local name
+    name=$(_sanitize_name "$1")
+    local lines="${2:-20}"
+
+    if ! _client_exists "$name"; then
+        _die "Client '$name' not found."
+    fi
+
+    local logf
+    logf=$(_log_file "$name")
+    if [[ ! -f "$logf" ]] || [[ ! -s "$logf" ]]; then
+        _info "No command log for '$name' yet."
+        return 0
+    fi
+
+    printf "${C_BOLD}Last %s commands for '%s':${C_RESET}\n" "$lines" "$name"
+    tail -n "$lines" "$logf"
+}
+
+cmd_compare() {
+    if [[ $# -lt 3 ]]; then
+        _die "Usage: azm compare <client1> <client2> <az-command...>\n  Example: azm compare client-a client-b az group list -o table"
+    fi
+    local name1 name2
+    name1=$(_sanitize_name "$1"); shift
+    name2=$(_sanitize_name "$1"); shift
+
+    for n in "$name1" "$name2"; do
+        _client_exists "$n" || _die "Client '$n' not found."
+    done
+
+    local pdir1 pdir2
+    pdir1=$(_profile_dir "$name1")
+    pdir2=$(_profile_dir "$name2")
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    echo
+    printf "${C_BOLD}═══ %s ═══${C_RESET}\n" "$name1"
+    AZURE_CONFIG_DIR="$pdir1" "$@" 2>&1 | tee "$tmpdir/cmp1" || true
+    _log_cmd "$name1" "COMPARE $*"
+
+    echo
+    printf "${C_BOLD}═══ %s ═══${C_RESET}\n" "$name2"
+    AZURE_CONFIG_DIR="$pdir2" "$@" 2>&1 | tee "$tmpdir/cmp2" || true
+    _log_cmd "$name2" "COMPARE $*"
+
+    # Diff if jq available and output is JSON
+    if command -v jq &>/dev/null && command -v diff &>/dev/null; then
+        echo
+        _info "Diff (if any):"
+        diff --color=auto <(jq -S . "$tmpdir/cmp1" 2>/dev/null || cat "$tmpdir/cmp1") \
+                          <(jq -S . "$tmpdir/cmp2" 2>/dev/null || cat "$tmpdir/cmp2") || true
+    fi
+
+    rm -rf "$tmpdir"
+}
+
+cmd_set_sub() {
+    if [[ $# -lt 2 ]]; then
+        _die "Usage: azm set-sub <client-name> <subscription-id>"
+    fi
+    local name sub
+    name=$(_sanitize_name "$1")
+    sub="$2"
+
+    _client_exists "$name" || _die "Client '$name' not found."
+
+    local tmpfile="$AZM_CLIENTS_FILE.tmp"
+    awk -F'|' -v n="$name" -v s="$sub" 'BEGIN{OFS="|"} $1==n{$3=s} {print}' \
+        "$AZM_CLIENTS_FILE" > "$tmpfile" && mv "$tmpfile" "$AZM_CLIENTS_FILE"
+
+    local pdir
+    pdir=$(_profile_dir "$name")
+    if [[ -d "$pdir" ]]; then
+        AZURE_CONFIG_DIR="$pdir" az account set --subscription "$sub" --only-show-errors 2>/dev/null || true
+    fi
+
+    _ok "Subscription for '$name' updated to: $sub"
+}
+
+cmd_version() {
+    echo "azm version $AZM_VERSION"
+}
+
+cmd_check() {
+    if [[ $# -lt 1 ]]; then
+        _die "Usage: azm check <client-name> [client2 client3 ...]\n  Validates token(s) without full status output."
+    fi
+
+    local total=$# failed=0
+    for raw in "$@"; do
+        local name
+        name=$(_sanitize_name "$raw")
+        
+        if ! _client_exists "$name"; then
+            _err "Client '$name' not found"
+            (( failed++ )) || true
+            continue
+        fi
+
+        local pdir
+        pdir=$(_profile_dir "$name")
+        
+        # Proper validation: az account get-access-token forces refresh token validation.
+        # az account show only reads cached data and won't detect expired refresh tokens.
+        if AZURE_CONFIG_DIR="$pdir" az account get-access-token --output none 2>/dev/null; then
+            _ok "$name: token valid"
+        else
+            _err "$name: token expired or not logged in"
+            (( failed++ )) || true
+        fi
+    done
+
+    [[ $failed -eq 0 ]] && return 0 || return 1
+}
+
+cmd_check_expired() {
+    if [[ ! -s "$AZM_CLIENTS_FILE" ]]; then
+        _die "No clients registered. Use: azm add <name> <tenant> <email>"
+    fi
+
+    _info "Checking all registered clients for expired tokens..."
+    echo
+
+    local names=() expired=() valid=()
+    while IFS='|' read -r cname _; do
+        [[ -z "$cname" || "$cname" == \#* ]] && continue
+        names+=("$cname")
+    done < "$AZM_CLIENTS_FILE"
+
+    # Check each client
+    for name in "${names[@]}"; do
+        local pdir
+        pdir=$(_profile_dir "$name")
+        # Use get-access-token to force token refresh validation
+        if AZURE_CONFIG_DIR="$pdir" az account get-access-token --output none 2>/dev/null; then
+            valid+=("$name")
+        else
+            expired+=("$name")
+        fi
+    done
+
+    # Report results
+    if [[ ${#valid[@]} -gt 0 ]]; then
+        printf "${C_BOLD}Valid tokens (${#valid[@]}):${C_RESET}\n"
+        for name in "${valid[@]}"; do
+            printf "  ${C_GREEN}✓${C_RESET} %s\n" "$name"
+        done
+        echo
+    fi
+
+    if [[ ${#expired[@]} -gt 0 ]]; then
+        printf "${C_BOLD}Expired/missing tokens (${#expired[@]}):${C_RESET}\n"
+        for name in "${expired[@]}"; do
+            printf "  ${C_RED}✗${C_RESET} %s\n" "$name"
+        done
+        echo
+        _info "To re-login expired clients, run: azm login-expired"
+        return 1
+    else
+        _ok "All clients have valid tokens!"
+        return 0
+    fi
+}
+
+cmd_login_expired() {
+    if [[ ! -s "$AZM_CLIENTS_FILE" ]]; then
+        _die "No clients registered. Use: azm add <name> <tenant> <email>"
+    fi
+
+    _info "Checking all registered clients for expired tokens..."
+    echo
+
+    local names=() expired=()
+    while IFS='|' read -r cname _; do
+        [[ -z "$cname" || "$cname" == \#* ]] && continue
+        names+=("$cname")
+    done < "$AZM_CLIENTS_FILE"
+
+    # Check each client - use get-access-token for proper validation
+    for name in "${names[@]}"; do
+        local pdir
+        pdir=$(_profile_dir "$name")
+        if ! AZURE_CONFIG_DIR="$pdir" az account get-access-token --output none 2>/dev/null; then
+            expired+=("$name")
+        fi
+    done
+
+    if [[ ${#expired[@]} -eq 0 ]]; then
+        _ok "All clients have valid tokens!"
+        return 0
+    fi
+
+    _info "Found ${#expired[@]} client(s) with expired/missing tokens: ${expired[*]}"
+    echo
+    cmd_login "${expired[@]}"
+}
+
+cmd_help() {
+    cat <<'EOF'
+
+  ╔═══════════════════════════════════════════════════════════╗
+  ║          azm — Azure Multi-Client CLI Manager            ║
+  ╚═══════════════════════════════════════════════════════════╝
+
+  COMMANDS:
+    add <name> <tenant> <email> [subscription-id]
+        Register a client. Subscription is optional — auto-detected on login.
+
+    list [--names|--json]
+        Show all registered clients and their login status.
+        --names: output only client names (one per line, for scripting)
+        --json:  output client details as a JSON array
+
+    login <name> [name2 name3 ...]
+        Interactive browser login for one or more clients (sequential).
+        Auto-detects and saves subscription if not provided at add time.
+
+    login-all
+        Login to every registered client sequentially.
+
+    run <name> <command...>
+        Execute any command with that client's isolated Azure context.
+        Example: azm run mycompany az group list -o table
+
+    switch <name>
+        Print an export statement for the client's profile.
+        Usage: eval $(azm switch mycompany)
+
+    status [name]
+        Show active context or details for a specific client.
+
+    set-sub <name> <subscription-id>
+        Manually set or update the subscription for a client.
+
+    remove <name>
+        Unregister a client and delete its profile/tokens.
+
+    log <name> [lines]
+        Show recent command log for a client (default: 20 lines).
+
+    compare <name1> <name2> <command...>
+        Run the same command against two clients and diff the output.
+
+    version
+        Show the azm version.
+
+    help
+        Show this help message.
+
+  EXAMPLES:
+    # Register a client (subscription auto-detected on login):
+    azm add mycompany mycompany.onmicrosoft.com user@mycompany.com
+
+    # Register with a known subscription:
+    azm add mycompany mycompany.onmicrosoft.com user@mycompany.com xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+    # Login
+    azm login mycompany
+    azm login mycompany othercompany    # login two back-to-back
+    azm login-all                       # login every registered client
+    azm login-expired                   # only re-login expired tokens
+
+    # Check token validity (fast)
+    azm check mycompany                 # single client
+    azm check mycompany othercompany    # multiple clients
+    azm check-expired                   # list all expired clients
+
+    # Run Azure CLI commands
+    azm run mycompany az group list -o table
+    azm run mycompany az vm list -o table
+
+    # Compare two clients
+    azm compare mycompany othercompany az group list -o json
+
+    # Check status
+    azm status mycompany
+    azm log mycompany 50
+
+  CONDITIONAL ACCESS & TOKEN EXPIRATION:
+    If your organization enforces conditional access policies (e.g., 24-hour max token
+    lifetime), tokens will expire frequently. Run 'azm login-expired' periodically to
+    refresh only the expired sessions, or use service principals for automation.
+
+  PREREQUISITES:
+    - Azure CLI (az) must be installed and on PATH
+    - Optional: jq (for JSON diff in compare command)
+
+  ENVIRONMENT:
+    AZM_HOME     Base directory (default: ~/.azclients)
+
+EOF
+}
+
+# ══════════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════════
+_ensure_dirs
+
+if [[ $# -eq 0 ]]; then
+    cmd_help
+    exit 0
+fi
+
+case "$1" in
+    add)        shift; cmd_add "$@" ;;
+    list|ls)    shift; cmd_list "$@" ;;
+    login)      shift; cmd_login "$@" ;;
+    login-all)  shift; cmd_login_all "$@" ;;
+    login-expired) shift; cmd_login_expired "$@" ;;
+    check)      shift; cmd_check "$@" ;;
+    check-expired) shift; cmd_check_expired "$@" ;;
+    run)        shift; cmd_run "$@" ;;
+    switch)     shift; cmd_switch "$@" ;;
+    status)     shift; cmd_status "$@" ;;
+    remove|rm)  shift; cmd_remove "$@" ;;
+    log)        shift; cmd_log "$@" ;;
+    compare|cmp) shift; cmd_compare "$@" ;;
+    set-sub)    shift; cmd_set_sub "$@" ;;
+    version|-v|--version) cmd_version ;;
+    help|-h|--help) cmd_help ;;
+    *)          _die "Unknown command: $1\nRun 'azm help' for usage." ;;
+esac

@@ -1,0 +1,22 @@
+# azm runtime data (never commit credentials or client configs)
+.azclients/
+profiles/
+logs/
+clients.conf
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+._*
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
