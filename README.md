@@ -140,6 +140,7 @@ If you work across many tenants/subscriptions, azm helps with:
 - Multi-client login (`login`, `login-all`, `login-expired`)
 - Token health checks (`check`, `check-expired`)
 - Machine-readable listing (`azm list --names`, `azm list --json`)
+- Optional masking for sensitive fields (`--mask` or `AZM_MASK_DETAILS=1`)
 - Cross-client command compare (`azm compare`)
 - Installer mode selection (`--install-full`, `--install-readonly`)
 
@@ -205,21 +206,37 @@ azm check-expired
 ### Run and compare commands
 
 ```bash
-azm run <name> az <subcommand> [flags]
+azm run [--mask] <name> az <subcommand> [flags]
 azm compare <client1> <client2> az <subcommand> [flags]
 ```
 
 ### Other commands
 
 ```bash
-azm list [--names|--json]
-azm status [name]
+azm list [--names|--json] [--mask]
+azm status [--mask] [name]
 azm set-sub <name> <sub-id>
 azm switch <name>
 azm remove <name>
 azm log <name> [n]
 azm version
 azm help
+```
+
+### Privacy masking
+
+Use `--mask` when printing client details in `list`, `run`, or `status` outputs:
+
+```bash
+azm list --mask
+azm run --mask acme az group list -o table
+azm status --mask acme
+```
+
+Enable masking globally for your shell session:
+
+```bash
+export AZM_MASK_DETAILS=1
 ```
 
 ---

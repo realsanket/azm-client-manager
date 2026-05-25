@@ -95,12 +95,46 @@ function Write-AuditLog {
     Add-Content -Path $logFile -Value "$timestamp | $Entry"
 }
 
+function Test-Truthy {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    return @("1", "true", "yes", "on") -contains $Value.ToLower()
+}
+
+function Test-MaskEnabled {
+    param([bool]$ForceMask = $false)
+    if ($ForceMask) { return $true }
+    return (Test-Truthy $env:AZM_MASK_DETAILS)
+}
+
+function Mask-Value {
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) { return "" }
+
+    $len = $Value.Length
+    if ($len -le 2) {
+        return ("*" * $len)
+    }
+    if ($len -le 8) {
+        return ($Value.Substring(0, 1) + "***" + $Value.Substring($len - 1, 1))
+    }
+
+    return ($Value.Substring(0, 4) + "..." + $Value.Substring($len - 4, 4))
+}
+
 function Show-Context {
-    param([string]$Name)
+    param([string]$Name, [bool]$ForceMask = $false)
     $line = Lookup-Client $Name
     $tenant = Get-ClientField $line 1
     $sub = Get-ClientField $line 2
     $email = Get-ClientField $line 3
+
+    if (Test-MaskEnabled -ForceMask:$ForceMask) {
+        $tenant = Mask-Value $tenant
+        $sub = Mask-Value $sub
+        $email = Mask-Value $email
+    }
+
     Write-Host "─────────────────────────────────────────────" -ForegroundColor DarkGray
     Write-Host "Client : " -NoNewline -ForegroundColor White; Write-Host $Name
     Write-Host "Tenant : " -NoNewline -ForegroundColor White; Write-Host $tenant
@@ -145,8 +179,30 @@ function Invoke-List {
         return
     }
 
+    $outputMode = "table"
+    $forceMask = $false
+
+    foreach ($arg in $Args) {
+        switch ($arg) {
+            "--names" {
+                if ($outputMode -ne "table") { Exit-WithError "Use only one of --names or --json" }
+                $outputMode = "names"
+            }
+            "--json" {
+                if ($outputMode -ne "table") { Exit-WithError "Use only one of --names or --json" }
+                $outputMode = "json"
+            }
+            "--mask" {
+                $forceMask = $true
+            }
+            default {
+                Exit-WithError "Unknown option for list: $arg`nUsage: azm list [--names|--json] [--mask]"
+            }
+        }
+    }
+
     # --names: machine-readable, one client name per line
-    if ($Args.Count -ge 1 -and $Args[0] -eq "--names") {
+    if ($outputMode -eq "names") {
         Get-Content $script:AZM_CLIENTS_FILE | ForEach-Object {
             if ([string]::IsNullOrWhiteSpace($_) -or $_.StartsWith("#")) { return }
             ($_ -split '\|')[0]
@@ -155,17 +211,27 @@ function Invoke-List {
     }
 
     # --json: machine-readable JSON array
-    if ($Args.Count -ge 1 -and $Args[0] -eq "--json") {
+    if ($outputMode -eq "json") {
         $clients = @()
         Get-Content $script:AZM_CLIENTS_FILE | ForEach-Object {
             if ([string]::IsNullOrWhiteSpace($_) -or $_.StartsWith("#")) { return }
             $fields = $_ -split '\|'
             $pdir = Get-ProfileDir $fields[0]
+            $tenant = $fields[1]
+            $subscription = $fields[2]
+            $email = $fields[3]
+
+            if (Test-MaskEnabled -ForceMask:$forceMask) {
+                $tenant = Mask-Value $tenant
+                $subscription = Mask-Value $subscription
+                $email = Mask-Value $email
+            }
+
             $loggedIn = (Test-Path (Join-Path $pdir "msal_token_cache.json")) -or
                         (Test-Path (Join-Path $pdir "accessTokens.json")) -or
                         (Test-Path (Join-Path $pdir "msal_token_cache.bin"))
             $clients += [PSCustomObject]@{
-                name = $fields[0]; tenant = $fields[1]; subscription = $fields[2]; email = $fields[3]; logged_in = $loggedIn
+                name = $fields[0]; tenant = $tenant; subscription = $subscription; email = $email; logged_in = $loggedIn
             }
         }
         $clients | ConvertTo-Json -Depth 2
@@ -178,16 +244,24 @@ function Invoke-List {
         if ([string]::IsNullOrWhiteSpace($_) -or $_.StartsWith("#")) { return }
         $fields = $_ -split '\|'
         $cname = $fields[0]; $ctenant = $fields[1]; $csub = $fields[2]; $cemail = $fields[3]
+        $outTenant = $ctenant; $outSub = $csub; $outEmail = $cemail
         $pdir = Get-ProfileDir $cname
         $hasToken = (Test-Path (Join-Path $pdir "msal_token_cache.json")) -or
                     (Test-Path (Join-Path $pdir "accessTokens.json")) -or
                     (Test-Path (Join-Path $pdir "msal_token_cache.bin"))
+
+        if (Test-MaskEnabled -ForceMask:$forceMask) {
+            $outTenant = Mask-Value $ctenant
+            $outSub = Mask-Value $csub
+            $outEmail = Mask-Value $cemail
+        }
+
         if ($hasToken) {
             Write-Host "● " -NoNewline -ForegroundColor Green
         } else {
             Write-Host "○ " -NoNewline -ForegroundColor Red
         }
-        Write-Host ("{0,-19} {1,-40} {2,-38} {3}" -f $cname, $ctenant, $csub, $cemail)
+        Write-Host ("{0,-19} {1,-40} {2,-38} {3}" -f $cname, $outTenant, $outSub, $outEmail)
     }
     Write-Host ""
     Write-Host "  " -NoNewline; Write-Host "●" -NoNewline -ForegroundColor Green; Write-Host " = token cache present (may be expired)   " -NoNewline
@@ -445,8 +519,18 @@ function Invoke-LoginExpired {
 
 function Invoke-Run {
     param([string[]]$Args)
+    $forceMask = $false
+    if ($Args.Count -ge 1 -and $Args[0] -eq "--mask") {
+        $forceMask = $true
+        if ($Args.Count -eq 1) {
+            $Args = @()
+        } else {
+            $Args = $Args[1..($Args.Count - 1)]
+        }
+    }
+
     if ($Args.Count -lt 2) {
-        Exit-WithError "Usage: azm run <client-name> <az-command...>`n  Example: azm run mycompany az group list"
+        Exit-WithError "Usage: azm run [--mask] <client-name> <az-command...>`n  Example: azm run --mask mycompany az group list"
     }
     $name = Sanitize-Name $Args[0]
     $cmdArgs = $Args[1..($Args.Count - 1)]
@@ -460,7 +544,7 @@ function Invoke-Run {
         Exit-WithError "Profile directory missing for '$name'. Re-add the client."
     }
 
-    Show-Context $name
+    Show-Context $name -ForceMask:$forceMask
     Write-Info "Running: $($cmdArgs -join ' ')"
     Write-Host ""
 
@@ -496,10 +580,20 @@ function Invoke-Switch {
 
 function Invoke-Status {
     param([string[]]$Args)
+    $forceMask = $false
+    if ($Args.Count -ge 1 -and $Args[0] -eq "--mask") {
+        $forceMask = $true
+        if ($Args.Count -eq 1) {
+            $Args = @()
+        } else {
+            $Args = $Args[1..($Args.Count - 1)]
+        }
+    }
+
     if ($Args.Count -ge 1) {
         $name = Sanitize-Name $Args[0]
         if (-not (Test-ClientExists $name)) { Exit-WithError "Client '$name' not found." }
-        Show-Context $name
+        Show-Context $name -ForceMask:$forceMask
         $pdir = Get-ProfileDir $name
         Write-Info "Profile dir: $pdir"
         Write-Host ""
@@ -643,7 +737,7 @@ function Show-Help {
     add <name> <tenant> <email> [subscription-id]
         Register a client. Subscription is optional — auto-detected on login.
 
-    list
+    list [--names|--json] [--mask]
         Show all registered clients and their login status.
 
     login <name> [name2 name3 ...]
@@ -666,7 +760,7 @@ function Show-Help {
         Does not perform login - just reports status grouped by valid/expired.
         Returns exit code 0 if all valid, 1 if any expired.
 
-    run <name> <command...>
+    run [--mask] <name> <command...>
         Execute any command with that client's isolated Azure context.
         Example: azm run mycompany az group list -o table
 
@@ -674,7 +768,7 @@ function Show-Help {
         Returns the profile directory path. Usage:
         `$env:AZURE_CONFIG_DIR = (azm switch mycompany)
 
-    status [name]
+    status [--mask] [name]
         Show active context or details for a specific client.
 
     set-sub <name> <subscription-id>
@@ -707,6 +801,11 @@ function Show-Help {
     azm check mycompany othercompany    # multiple clients
     azm check-expired                   # list all expired clients
 
+    # Privacy masking for sensitive fields
+    azm list --mask
+    azm run --mask mycompany az group list -o table
+    azm status --mask mycompany
+
     azm run mycompany az group list -o table
     azm compare mycompany othercompany az group list -o json
 
@@ -721,6 +820,7 @@ function Show-Help {
 
   ENVIRONMENT:
     AZM_HOME     Base directory (default: ~/.azclients)
+        AZM_MASK_DETAILS  Mask sensitive values when set to 1/true/yes/on
 
 "@
 }
