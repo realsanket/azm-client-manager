@@ -10,15 +10,16 @@ export function MetricTile({
   tone?: "neutral" | "success" | "danger" | "warning";
 }) {
   return (
-    <div className="flex items-baseline gap-1.5 py-1 font-mono text-xs">
-      <span className="text-muted-foreground uppercase tracking-wider text-[10px]">
+    <div className="flex items-baseline gap-1.5 font-mono">
+      <span className="text-[10px] tracking-wider uppercase text-muted-foreground/80 leading-none">
         {label}
       </span>
-      <span className="text-muted-foreground/50 select-none">│</span>
+      <span className="flex-1 border-b border-dashed border-border/60 translate-y-[-2px]" />
       <span
         className={cn(
-          "tabular-nums font-semibold text-foreground",
-          tone === "danger" && value > 0 && "text-destructive"
+          "tabular-nums font-semibold text-sm leading-none text-foreground",
+          tone === "danger" && value > 0 && "text-destructive",
+          tone === "success" && value > 0 && "text-success"
         )}
       >
         {value}

@@ -56,51 +56,61 @@ export function AppSidebar({
 }) {
   return (
     <Sidebar collapsible="offcanvas" className="border-r border-border/70">
-      <SidebarHeader className="gap-4 pb-3 pt-4">
-        <div className="flex items-baseline gap-2 px-1">
-          <span className="font-display text-2xl text-foreground">
+      <SidebarHeader className="gap-3 pb-3 pt-3 px-3">
+        <div className="flex items-baseline justify-between">
+          <span
+            className="font-serif text-lg leading-none text-foreground tracking-tight"
+            style={{
+              fontVariationSettings: '"opsz" 96, "SOFT" 40',
+              fontWeight: 500,
+            }}
+          >
             az
-            <span className="text-muted-foreground/60 mx-[-0.06em]">│</span>
+            <span className="text-muted-foreground/50 font-thin mx-[0.05em] font-sans">
+              │
+            </span>
             m
           </span>
-          <span className="eyebrow ml-auto">console</span>
+          <span className="eyebrow text-[9.5px]">console</span>
         </div>
 
-        <div className="flex flex-col gap-0 px-1">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 -mx-0.5">
           <MetricTile label="clients" value={counts.clients} />
           <MetricTile label="cached" value={counts.cached} />
           <MetricTile label="valid" value={counts.valid} tone="success" />
           <MetricTile label="expired" value={counts.expired} tone="danger" />
         </div>
 
-        <div className="grid grid-cols-3 gap-1 px-1">
+        <div className="grid grid-cols-3 gap-1">
           <Button
             size="sm"
-            variant="ghost"
+            variant="outline"
             onClick={onRefresh}
             disabled={loading || busy}
-            className="cursor-pointer font-mono text-[11px] gap-1 h-8 px-2"
-            title="Refresh"
+            className="cursor-pointer font-mono text-[11px] gap-1 h-7 px-2 rounded-sm border-border/70"
+            title="Refresh clients"
           >
-            <RefreshCw className="size-3.5" />
+            <RefreshCw className="size-3" />
+            <span className="lowercase">refresh</span>
           </Button>
           <Button
             size="sm"
-            variant="ghost"
+            variant="outline"
             onClick={onCheckTokens}
             disabled={busy}
-            className="cursor-pointer font-mono text-[11px] gap-1 h-8 px-2"
+            className="cursor-pointer font-mono text-[11px] gap-1 h-7 px-2 rounded-sm border-border/70"
             title="Check tokens"
           >
-            <ShieldCheck className="size-3.5" />
+            <ShieldCheck className="size-3" />
+            <span className="lowercase">check</span>
           </Button>
           <Button
             size="sm"
             onClick={onAdd}
             disabled={busy}
-            className="cursor-pointer font-mono text-[11px] gap-1 h-8 px-2"
+            className="cursor-pointer font-mono text-[11px] gap-1 h-7 px-2 rounded-sm"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3" />
             add
           </Button>
         </div>
