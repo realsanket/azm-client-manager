@@ -20,3 +20,4 @@ Desktop.ini
 # Temporary files
 *.tmp
 *.bak
+.claude/
