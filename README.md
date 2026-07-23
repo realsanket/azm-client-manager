@@ -255,6 +255,53 @@ Mode detection for skills is based on `~/.azclients/install-mode`.
 
 ---
 
+## Web UI (optional)
+
+An optional browser UI lives under `azm-ui/`. It wraps the same `azm` CLI in a React + Express app so you can pick a client, run read-only Azure CLI commands, and manage tokens without leaving the browser.
+
+```bash
+cd azm-ui
+npm install
+npm run dev
+```
+
+Opens on http://localhost:5173, backend on port 3001.
+
+Requires `azm` and Azure CLI on PATH, Node.js 20+.
+
+See [`azm-ui/README.md`](azm-ui/README.md) for details.
+
+---
+
+## Team presets
+
+The UI reads YAML recipe groups from [`team-presets/`](team-presets/). Each file defines a preset with a list of read-only `az` commands. Shipped examples:
+
+| File | Focus |
+| --- | --- |
+| `general_team.yml` | Default cross-team read-only queries |
+| `networking_team.yml` | VNets, subnets, NSGs, private endpoints, DNS |
+| `compute_team.yml` | VMs, VMSS, AKS, container apps, web/function apps |
+| `security_team.yml` | Key vaults, RBAC, policy, managed identities |
+
+Preset schema:
+
+```yaml
+id: my_team
+name: My Team
+description: Optional one-line summary.
+recipes:
+  command:
+    - label: Groups
+      command: az group list -o table
+    - label: Account
+      command: az account show -o table
+```
+
+Drop new `.yml` / `.yaml` files into `team-presets/` and pick them in the UI Settings dialog. Multiple presets can be selected at once — recipes merge and dedupe by label + command.
+
+---
+
 ## How It Works
 
 ```text

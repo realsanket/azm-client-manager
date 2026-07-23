@@ -1,0 +1,19 @@
+id: networking_team
+name: Networking Team
+description: Read-only queries for VNets, subnets, NSGs, private endpoints, and DNS.
+recipes:
+  command:
+    - label: VNets
+      command: az network vnet list -o table
+    - label: Subnets
+      command: az network vnet subnet list --vnet-name <vnet-name> -g <resource-group> -o table
+    - label: NSGs
+      command: az network nsg list -o table
+    - label: Private endpoints
+      command: az network private-endpoint list -o table
+    - label: Private DNS zones
+      command: az network private-dns zone list -o table
+    - label: Public IPs
+      command: az network public-ip list -o table
+    - label: Route tables
+      command: az network route-table list -o table

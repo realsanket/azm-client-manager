@@ -1,0 +1,19 @@
+id: compute_team
+name: Compute Team
+description: Read-only queries for VMs, VMSS, AKS, and container services.
+recipes:
+  command:
+    - label: Virtual machines
+      command: az vm list -o table
+    - label: VM scale sets
+      command: az vmss list -o table
+    - label: Disks
+      command: az disk list -o table
+    - label: AKS clusters
+      command: az aks list -o table
+    - label: Container apps
+      command: az containerapp list -o table
+    - label: Web apps
+      command: az webapp list -o table
+    - label: Function apps
+      command: az functionapp list -o table

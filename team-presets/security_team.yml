@@ -1,0 +1,17 @@
+id: security_team
+name: Security Team
+description: Read-only queries for identity, secrets, RBAC, and policy assignments.
+recipes:
+  command:
+    - label: Key vaults
+      command: az keyvault list -o table
+    - label: Role assignments
+      command: az role assignment list --all -o table
+    - label: Role definitions
+      command: az role definition list -o table
+    - label: Policy assignments
+      command: az policy assignment list -o table
+    - label: Managed identities
+      command: az identity list -o table
+    - label: AAD signed-in user
+      command: az ad signed-in-user show -o table

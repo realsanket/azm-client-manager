@@ -1,0 +1,17 @@
+id: general_team
+name: General Team
+description: Shared default read-only queries for all teams.
+recipes:
+  command:
+    - label: Groups
+      command: az group list -o table
+    - label: Account
+      command: az account show -o table
+    - label: Virtual machines
+      command: az vm list -o table
+    - label: VNets
+      command: az network vnet list -o table
+    - label: Storage
+      command: az storage account list -o table
+    - label: Subscriptions
+      command: az account list -o table
