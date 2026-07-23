@@ -10,22 +10,19 @@ export function MetricTile({
   tone?: "neutral" | "success" | "danger" | "warning";
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-md border bg-card/40 px-2.5 py-2 flex flex-col gap-0.5"
-      )}
-    >
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+    <div className="flex items-baseline gap-1.5 py-1 font-mono text-xs">
+      <span className="text-muted-foreground uppercase tracking-wider text-[10px]">
         {label}
       </span>
-      <strong
+      <span className="text-muted-foreground/50 select-none">│</span>
+      <span
         className={cn(
-          "text-lg font-mono font-semibold leading-none tabular-nums text-foreground",
-          tone === "danger" && "text-destructive"
+          "tabular-nums font-semibold text-foreground",
+          tone === "danger" && value > 0 && "text-destructive"
         )}
       >
         {value}
-      </strong>
+      </span>
     </div>
   );
 }

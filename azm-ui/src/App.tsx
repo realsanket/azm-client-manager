@@ -28,6 +28,7 @@ import {
 } from "@/hooks/useAzm";
 import { useTheme } from "@/hooks/useTheme";
 import { isAzCommand, tokenState } from "@/lib/azm-format";
+import { hueForClient } from "@/lib/client-hue";
 
 const defaultCommandRecipes: TeamRecipe[] = [
   { label: "Groups", command: "az group list -o table" },
@@ -382,28 +383,40 @@ export default function App() {
       />
 
       <SidebarInset>
-        <header className="flex h-14 items-center gap-3 border-b px-4 md:px-6 bg-background/80 backdrop-blur sticky top-0 z-30">
+        <header className="flex h-14 items-center gap-3 border-b border-border/70 px-4 md:px-6 bg-background/85 backdrop-blur sticky top-0 z-30">
           <SidebarTrigger className="cursor-pointer" aria-label="Toggle sidebar">
             <PanelLeft className="size-4" />
           </SidebarTrigger>
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-              Active
-            </span>
-            <span className="font-mono font-semibold truncate">
-              {selectedClient ? selectedClient.name : "No client selected"}
-            </span>
+          <div className="flex items-center gap-2.5 min-w-0 flex-1 font-mono text-xs">
+            <span className="eyebrow shrink-0">active</span>
+            <span className="text-border">│</span>
             {selectedClient ? (
-              <TokenBadge state={tokenState(selectedClient, currentToken)} />
-            ) : null}
+              <>
+                <span
+                  className="size-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: hueForClient(selectedClient.name) }}
+                  aria-hidden
+                />
+                <span
+                  className="font-serif text-base tracking-tight truncate"
+                  style={{ fontVariationSettings: '"opsz" 36, "SOFT" 30' }}
+                >
+                  {selectedClient.name}
+                </span>
+                <span className="text-border">│</span>
+                <TokenBadge state={tokenState(selectedClient, currentToken)} />
+              </>
+            ) : (
+              <span className="text-muted-foreground italic">no client</span>
+            )}
           </div>
           <button
             type="button"
             onClick={() => setShowPalette(true)}
-            className="hidden sm:inline-flex items-center gap-2 rounded-md border bg-muted/40 hover:bg-muted transition-colors px-2.5 py-1 text-xs text-muted-foreground cursor-pointer"
+            className="hidden sm:inline-flex items-center gap-2 rounded-sm border border-border/70 bg-transparent hover:bg-accent transition-colors duration-150 px-2 py-1 text-[11px] text-muted-foreground cursor-pointer font-mono"
           >
-            <span>Search…</span>
-            <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-0.5 rounded border bg-background px-1 font-mono text-[10px]">
+            <span>find…</span>
+            <kbd className="pointer-events-none inline-flex select-none items-center rounded-sm border border-border px-1 text-[10px]">
               ⌘K
             </kbd>
           </button>
@@ -416,15 +429,15 @@ export default function App() {
                 value={activeView}
                 onValueChange={(v) => setActiveView(v as View)}
               >
-                <TabsList className="mb-6">
-                  <TabsTrigger value="run" className="cursor-pointer">
-                    Run
+                <TabsList className="mb-6 rounded-sm bg-muted/60 p-0.5 font-mono">
+                  <TabsTrigger value="run" className="cursor-pointer rounded-sm text-xs">
+                    run
                   </TabsTrigger>
-                  <TabsTrigger value="client" className="cursor-pointer">
-                    Client
+                  <TabsTrigger value="client" className="cursor-pointer rounded-sm text-xs">
+                    client
                   </TabsTrigger>
-                  <TabsTrigger value="management" className="cursor-pointer">
-                    Management
+                  <TabsTrigger value="management" className="cursor-pointer rounded-sm text-xs">
+                    ops
                   </TabsTrigger>
                 </TabsList>
 

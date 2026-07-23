@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, ShieldCheck, Settings2, Keyboard } from "lucide-react";
+import { Plus, RefreshCw, ShieldCheck, Settings2 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -12,11 +12,11 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { MetricTile } from "@/components/metric-tile";
 import { TokenBadge } from "@/components/token-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { initials, tokenState } from "@/lib/azm-format";
+import { tokenState } from "@/lib/azm-format";
+import { hueForClient } from "@/lib/client-hue";
 import { cn } from "@/lib/utils";
 import type { AzmClient } from "@/hooks/useAzm";
 
@@ -55,109 +55,113 @@ export function AppSidebar({
   onSelect: (name: string) => void;
 }) {
   return (
-    <Sidebar collapsible="offcanvas" className="border-r">
-      <SidebarHeader className="gap-3 pb-2">
-        <div className="flex items-center gap-2.5">
-          <div className="size-8 rounded-md bg-foreground text-background grid place-items-center font-mono font-semibold text-sm tracking-tight">
+    <Sidebar collapsible="offcanvas" className="border-r border-border/70">
+      <SidebarHeader className="gap-4 pb-3 pt-4">
+        <div className="flex items-baseline gap-2 px-1">
+          <span className="font-display text-2xl text-foreground">
             az
-          </div>
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-sm font-semibold truncate">
-              Azure Multi-Client
-            </span>
-            <span className="text-[11px] text-muted-foreground truncate">
-              Read-only console
-            </span>
-          </div>
+            <span className="text-muted-foreground/60 mx-[-0.06em]">│</span>
+            m
+          </span>
+          <span className="eyebrow ml-auto">console</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <MetricTile label="Clients" value={counts.clients} />
-          <MetricTile label="Cached" value={counts.cached} />
-          <MetricTile label="Valid" value={counts.valid} tone="success" />
-          <MetricTile label="Expired" value={counts.expired} tone="danger" />
+        <div className="flex flex-col gap-0 px-1">
+          <MetricTile label="clients" value={counts.clients} />
+          <MetricTile label="cached" value={counts.cached} />
+          <MetricTile label="valid" value={counts.valid} tone="success" />
+          <MetricTile label="expired" value={counts.expired} tone="danger" />
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 gap-1 px-1">
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
             onClick={onRefresh}
             disabled={loading || busy}
-            className="cursor-pointer"
+            className="cursor-pointer font-mono text-[11px] gap-1 h-8 px-2"
+            title="Refresh"
           >
             <RefreshCw className="size-3.5" />
-            <span className="sr-only sm:not-sr-only">Refresh</span>
           </Button>
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
             onClick={onCheckTokens}
             disabled={busy}
-            className="cursor-pointer"
+            className="cursor-pointer font-mono text-[11px] gap-1 h-8 px-2"
+            title="Check tokens"
           >
             <ShieldCheck className="size-3.5" />
-            <span className="sr-only sm:not-sr-only">Check</span>
           </Button>
           <Button
             size="sm"
             onClick={onAdd}
             disabled={busy}
-            className="cursor-pointer"
+            className="cursor-pointer font-mono text-[11px] gap-1 h-8 px-2"
           >
             <Plus className="size-3.5" />
-            Add
+            add
           </Button>
         </div>
       </SidebarHeader>
 
-      <Separator />
-
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] uppercase tracking-wider">
-            Clients
+        <SidebarGroup className="pt-1">
+          <SidebarGroupLabel className="eyebrow px-3">
+            clients
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {loading && clients.length === 0 ? (
-              <div className="px-2 py-3 text-xs text-muted-foreground">
-                Loading clients…
+              <div className="px-3 py-2 text-xs text-muted-foreground font-mono">
+                loading…
               </div>
             ) : null}
             {!loading && clients.length === 0 ? (
-              <div className="px-2 py-3 text-xs text-muted-foreground">
-                No clients registered. Click <span className="font-medium">Add</span> to
-                register your first tenant.
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                No clients yet. Add one to begin.
               </div>
             ) : null}
-            <SidebarMenu>
+            <SidebarMenu className="gap-0.5">
               {clients.map((client) => {
                 const state = tokenState(client, tokenStatus[client.name]);
                 const isActive = client.name === selectedName;
+                const hue = hueForClient(client.name);
                 return (
                   <SidebarMenuItem key={client.name}>
                     <SidebarMenuButton
                       isActive={isActive}
                       onClick={() => onSelect(client.name)}
                       className={cn(
-                        "h-auto py-2 cursor-pointer group",
-                        "data-[active=true]:bg-accent"
+                        "relative h-auto py-2 pl-3 pr-2 rounded-none cursor-pointer group",
+                        "data-[active=true]:bg-accent/70"
                       )}
+                      style={
+                        isActive
+                          ? ({
+                              boxShadow: `inset 2px 0 0 0 ${hue}`,
+                            } as React.CSSProperties)
+                          : undefined
+                      }
                     >
                       <span
-                        className={cn(
-                          "size-7 rounded-md grid place-items-center text-[10px] font-mono font-semibold shrink-0 border",
-                          "bg-transparent text-muted-foreground border-border",
-                          isActive && "bg-foreground text-background border-foreground"
-                        )}
-                      >
-                        {initials(client.name)}
-                      </span>
+                        className="size-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: hue }}
+                        aria-hidden
+                      />
                       <span className="flex flex-col min-w-0 items-start leading-tight flex-1">
-                        <span className="text-sm font-medium truncate w-full">
+                        <span
+                          className={cn(
+                            "font-serif text-[15px] truncate w-full",
+                            "font-medium tracking-tight"
+                          )}
+                          style={{
+                            fontVariationSettings: '"opsz" 36, "SOFT" 30',
+                          }}
+                        >
                           {client.name}
                         </span>
-                        <span className="text-[11px] text-muted-foreground truncate w-full">
+                        <span className="text-[11px] text-muted-foreground truncate w-full font-mono">
                           {client.tenant}
                         </span>
                       </span>
@@ -171,34 +175,30 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t">
-        <div className="flex items-center justify-between gap-1">
+      <SidebarFooter className="border-t border-border/70 gap-2">
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-sm text-left cursor-pointer hover:bg-accent transition-colors duration-150"
+          aria-label="Open command palette"
+        >
+          <span className="font-mono text-xs text-muted-foreground">
+            <span className="text-foreground/70">⌘</span>K palette
+          </span>
+          <span className="text-muted-foreground/40 text-xs">↵</span>
+        </button>
+
+        <div className="flex items-center justify-between px-1">
           <Button
             variant="ghost"
-            size="sm"
-            onClick={onOpenPalette}
-            aria-label="Open command palette"
-            className="cursor-pointer gap-1.5"
+            size="icon-sm"
+            onClick={onOpenPresets}
+            aria-label="Team preset settings"
+            className="cursor-pointer"
           >
-            <Keyboard className="size-3.5" />
-            <span className="text-xs">Palette</span>
-            <kbd className="ml-1 pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
-              ⌘K
-            </kbd>
+            <Settings2 className="size-4" />
           </Button>
-
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onOpenPresets}
-              aria-label="Team preset settings"
-              className="cursor-pointer"
-            >
-              <Settings2 className="size-4" />
-            </Button>
-            <ThemeToggle />
-          </div>
+          <ThemeToggle />
         </div>
       </SidebarFooter>
     </Sidebar>
