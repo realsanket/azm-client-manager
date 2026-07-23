@@ -411,7 +411,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_min(28rem,40%)] flex-1 min-h-0">
           <main className="min-w-0 min-h-0 overflow-y-auto">
-            <div className="p-4 md:p-8 max-w-5xl">
+            <div className="p-4 md:p-8 max-w-6xl">
               <Tabs
                 value={activeView}
                 onValueChange={(v) => setActiveView(v as View)}

@@ -4,11 +4,11 @@ import type { TokenState } from "@/lib/azm-format";
 
 const styles: Record<TokenState, string> = {
   valid:
-    "bg-success/15 text-success border border-success/30 hover:bg-success/20",
+    "bg-foreground/5 text-foreground border border-foreground/15",
   expired:
-    "bg-destructive/15 text-destructive border border-destructive/30 hover:bg-destructive/20",
+    "bg-destructive/10 text-destructive border border-destructive/25",
   cached:
-    "bg-warning/15 text-warning-foreground border border-warning/30 hover:bg-warning/20 dark:text-warning",
+    "bg-foreground/5 text-foreground border border-foreground/15",
   missing:
     "bg-muted text-muted-foreground border border-border",
 };

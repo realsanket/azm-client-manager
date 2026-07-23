@@ -39,7 +39,7 @@ export function OutputPanel({
 
       {busy ? (
         <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30 text-xs font-mono text-muted-foreground">
-          <Loader2 className="size-3 animate-spin text-primary" />
+          <Loader2 className="size-3 animate-spin text-foreground" />
           <span className="truncate">{busy}</span>
         </div>
       ) : null}

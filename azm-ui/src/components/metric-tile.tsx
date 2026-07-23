@@ -20,10 +20,8 @@ export function MetricTile({
       </span>
       <strong
         className={cn(
-          "text-lg font-mono font-semibold leading-none tabular-nums",
-          tone === "success" && "text-success",
-          tone === "danger" && "text-destructive",
-          tone === "warning" && "text-warning-foreground"
+          "text-lg font-mono font-semibold leading-none tabular-nums text-foreground",
+          tone === "danger" && "text-destructive"
         )}
       >
         {value}

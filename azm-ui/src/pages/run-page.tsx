@@ -86,7 +86,7 @@ export function RunPage({
               disabled={busy}
               className={cn(
                 "text-left rounded-md border bg-card px-3 py-2 cursor-pointer",
-                "transition-colors hover:border-primary/60 hover:bg-accent/60",
+                "transition-colors duration-150 hover:border-foreground/40 hover:bg-accent",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 "disabled:opacity-50 disabled:cursor-not-allowed"
               )}

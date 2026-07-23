@@ -1,3 +1,4 @@
+import type * as React from "react";
 import { LogIn, RefreshCw, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -24,7 +25,7 @@ export function ManagementPage({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <ActionCard
-          icon={<LogIn className="size-4 text-primary" />}
+          icon={<LogIn className="size-4 text-foreground" />}
           title="Login expired"
           description="Re-authenticate only clients whose token failed validation."
           command="azm login-expired"
@@ -33,7 +34,7 @@ export function ManagementPage({
           onClick={onLoginExpired}
         />
         <ActionCard
-          icon={<RefreshCw className="size-4 text-primary" />}
+          icon={<RefreshCw className="size-4 text-foreground" />}
           title="Login all"
           description="Sequential interactive login for every registered client."
           command="azm login-all"
@@ -41,7 +42,7 @@ export function ManagementPage({
           onClick={onLoginAll}
         />
         <ActionCard
-          icon={<ShieldAlert className="size-4 text-primary" />}
+          icon={<ShieldAlert className="size-4 text-foreground" />}
           title="Check expired"
           description="Force refresh-token validation and list expired clients."
           command="azm check-expired"
@@ -74,7 +75,7 @@ function ActionCard({
     <Card className="flex flex-col gap-4">
       <CardHeader className="gap-1">
         <div className="flex items-center gap-2">
-          <div className="size-8 rounded-md bg-primary/10 grid place-items-center">
+          <div className="size-8 rounded-md bg-foreground/[0.06] border border-border grid place-items-center">
             {icon}
           </div>
           <CardTitle className="text-sm font-semibold">{title}</CardTitle>

@@ -58,7 +58,7 @@ export function AppSidebar({
     <Sidebar collapsible="offcanvas" className="border-r">
       <SidebarHeader className="gap-3 pb-2">
         <div className="flex items-center gap-2.5">
-          <div className="size-8 rounded-md bg-primary text-primary-foreground grid place-items-center font-mono font-bold text-sm">
+          <div className="size-8 rounded-md bg-foreground text-background grid place-items-center font-mono font-semibold text-sm tracking-tight">
             az
           </div>
           <div className="flex flex-col leading-tight min-w-0">
@@ -146,9 +146,9 @@ export function AppSidebar({
                     >
                       <span
                         className={cn(
-                          "size-7 rounded-md grid place-items-center text-[10px] font-mono font-semibold shrink-0",
-                          "bg-muted text-muted-foreground",
-                          isActive && "bg-primary text-primary-foreground"
+                          "size-7 rounded-md grid place-items-center text-[10px] font-mono font-semibold shrink-0 border",
+                          "bg-transparent text-muted-foreground border-border",
+                          isActive && "bg-foreground text-background border-foreground"
                         )}
                       >
                         {initials(client.name)}

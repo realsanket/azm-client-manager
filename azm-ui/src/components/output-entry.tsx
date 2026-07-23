@@ -37,7 +37,7 @@ export function OutputEntryCard({ entry }: { entry: OutputEntry }) {
         ok ? "border-border" : "border-destructive/40"
       )}
     >
-      <header className="flex items-start justify-between gap-3 px-3 py-2 border-b bg-muted/30">
+      <header className="flex items-start justify-between gap-3 px-3 py-2 border-b bg-card">
         <div className="min-w-0 flex-1">
           <strong className="block text-xs font-medium truncate">
             {entry.title}
@@ -58,7 +58,7 @@ export function OutputEntryCard({ entry }: { entry: OutputEntry }) {
             className="cursor-pointer"
           >
             {copied ? (
-              <Check className="size-3 text-success" />
+              <Check className="size-3 text-foreground" />
             ) : (
               <Copy className="size-3" />
             )}
@@ -72,7 +72,7 @@ export function OutputEntryCard({ entry }: { entry: OutputEntry }) {
           className={cn(
             "font-mono text-[10px] rounded-sm px-1.5",
             ok
-              ? "bg-success/10 text-success border-success/30"
+              ? "bg-transparent text-foreground border-foreground/25"
               : "bg-destructive/10 text-destructive border-destructive/30"
           )}
         >
@@ -84,7 +84,7 @@ export function OutputEntryCard({ entry }: { entry: OutputEntry }) {
       </div>
 
       {parsed.metadata.length ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-3 py-2 border-b bg-muted/20 text-[11px]">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-3 py-2 border-b bg-card text-[11px]">
           {parsed.metadata.map((item) => (
             <div key={item.label} className="min-w-0">
               <span className="text-muted-foreground uppercase tracking-wider text-[10px] block">

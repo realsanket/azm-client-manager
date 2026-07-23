@@ -83,7 +83,7 @@ export function TeamPresetDialog({
                 className={cn(
                   "flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors",
                   selected
-                    ? "bg-accent/60 border-primary/40"
+                    ? "bg-accent border-foreground/40"
                     : "hover:bg-accent/40",
                   lockLast && "cursor-not-allowed"
                 )}
